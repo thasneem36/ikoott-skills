@@ -278,8 +278,15 @@ def check_bridge_line_present(text: str) -> "tuple[bool, str]":
     pass2_idx = _pass2_idx(text)
     if pass2_idx == -1:
         return False, "No Pass 2 section found."
-    window = text[pass2_idx: pass2_idx + 600]
-    if re.search(r"(same logic|now that|apply.*(same|logic)|understood now)", window, re.IGNORECASE):
+    # The bridge sentence is sometimes written as prose right before the Pass 2 heading
+    # rather than under its own "Bridge" heading, so look a bit before the boundary too.
+    window = text[max(0, pass2_idx - 500): pass2_idx + 600]
+    if re.search(
+        r"(same logic|now that|apply.*(same|logic)|understood now|logic is (solid|clear|understood)|"
+        r"same (rules|structure)|stays (the same|identical|exactly the same)|what (changes|stays))",
+        window,
+        re.IGNORECASE,
+    ):
         return True, "Found bridge-line language at the start of Pass 2."
     return False, "No bridge line ('same logic, now applying to...') found at the start of Pass 2."
 
@@ -298,11 +305,20 @@ def check_assessment_main_demo_present(text: str) -> "tuple[bool, str]":
     return False, "No Main demonstration referencing a real assessment-domain object found in Pass 2."
 
 
+CHECK_IN_PHRASE_RE = re.compile(
+    r"(whenever you'?re ready|when you'?re ready|ready when you are|whenever you are|"
+    r"let me know|just say|your call|up to you|take your time)",
+    re.IGNORECASE,
+)
+
+
 def check_closing_asks_permission(text: str) -> "tuple[bool, str]":
     tail = text.strip()[-400:]
     if "?" in tail:
         return True, "Response ends with a question (checking in before advancing)."
-    return False, "Response does not end with a question — may be auto-advancing instead of checking in."
+    if CHECK_IN_PHRASE_RE.search(tail):
+        return True, "Response ends with a non-question check-in invitation (e.g. 'whenever you're ready')."
+    return False, "Response does not end with a question or check-in phrase — may be auto-advancing instead."
 
 
 def check_commit_after_full_topic_only(text: str) -> "tuple[bool, str]":

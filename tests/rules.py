@@ -43,21 +43,49 @@ DIAGRAM_HINT_RE = re.compile(
     r"(diagram|\[.*->.*\]|-->|<--|\+---|\|\s*\d+\s*\|| / \\ |\\ / )", re.IGNORECASE
 )
 METHOD_SIG_RE = re.compile(
-    r"\b(public|private|protected)?\s*(static\s+)?[\w<>\[\]]+\s+(\w+)\s*\(([^)]*)\)\s*\{",
+    # Anchored to the start of a line (past leading whitespace) so a comment's last word
+    # can never be mistaken for a return type sitting in front of a later `if (...) {`.
+    r"^[ \t]*(public|private|protected)?\s*(static\s+)?[\w<>\[\]]+\s+(\w+)\s*\(([^)]*)\)\s*\{",
+    re.MULTILINE,
 )
 GIT_COMMIT_RE = re.compile(r"git\s+commit\s+-m\s+[\"']([^\"']+)[\"']", re.IGNORECASE)
-PATIENT_OBJECT_RE = re.compile(r"\bPatient\w*\b")
+
+# Java control-flow keywords that look like `name(...) {` but are not method signatures.
+CONTROL_FLOW_KEYWORDS = {
+    "if", "else", "for", "while", "switch", "catch", "synchronized", "try", "do",
+}
+
+# Domain-specific object nouns pulled from the sample assessment (tests/assessment.txt):
+# Patient (BST/Queue), Treatment (Stack), Visit/Doctor/Diagnosis (Linked List). Pass 1 must
+# stay generic (none of these), Pass 2 must apply to at least one of these real objects.
+# Keep this in sync if a different assessment.txt is swapped in.
+DOMAIN_WORDS = ["Patient", "Treatment", "Visit", "Doctor", "Diagnosis"]
+DOMAIN_OBJECT_RE = re.compile(r"\b(" + "|".join(DOMAIN_WORDS) + r")\w*\b")
+
+# Heading-level signals for where Pass 1 / Pass 2 begin. A response is not required to use
+# the literal words "Pass 1"/"Pass 2" verbatim -- the skill file's own section titles are
+# "PASS 1 -- Generic" and "PASS 2 -- Apply to Assessment", so a heading built from those same
+# words ("Generic Code...", "Assessment Code...", "Bridge...") is an equally valid signal.
+PASS1_HEADING_RE = re.compile(r"^\s{0,3}#{1,6}.*\b(pass\s*1|generic)\b.*$", re.IGNORECASE | re.MULTILINE)
+PASS2_HEADING_RE = re.compile(r"^\s{0,3}#{1,6}.*\b(pass\s*2|assessment|bridge)\b.*$", re.IGNORECASE | re.MULTILINE)
 
 
 def _code_blocks(text: str):
     return [(m.group(1), m.group(2), m.start()) for m in CODE_BLOCK_RE.finditer(text)]
 
 
-def _find_section(text: str, *labels: str) -> int:
-    """Return the earliest index at which any of the given labels appears, or -1."""
-    idxs = [text.lower().find(label.lower()) for label in labels]
-    idxs = [i for i in idxs if i != -1]
-    return min(idxs) if idxs else -1
+def _pass_boundary(text: str, pattern: "re.Pattern") -> int:
+    """Return the start index of the earliest heading matching `pattern`, or -1."""
+    m = pattern.search(text)
+    return m.start() if m else -1
+
+
+def _pass1_idx(text: str) -> int:
+    return _pass_boundary(text, PASS1_HEADING_RE)
+
+
+def _pass2_idx(text: str) -> int:
+    return _pass_boundary(text, PASS2_HEADING_RE)
 
 
 def check_diagram_before_code(text: str) -> "tuple[bool, str]":
@@ -69,6 +97,12 @@ def check_diagram_before_code(text: str) -> "tuple[bool, str]":
     pre_code_text = text[:first_code_pos]
     if DIAGRAM_HINT_RE.search(pre_code_text):
         return True, "Found diagram-like content before the first real code block."
+    # Fallback: not every diagram uses arrows/box-drawing (e.g. a plain tree sketch with
+    # irregular spacing). Any fenced, non-Java block before the first code block is almost
+    # certainly the required diagram.
+    pre_code_blocks = [b for b in blocks if b[2] < first_code_pos and not JAVA_CODE_SIGNAL_RE.search(b[1])]
+    if pre_code_blocks:
+        return True, "Found a non-code fenced block before the first real code block (likely a diagram)."
     return False, "No diagram/ASCII-art content detected before the first code block."
 
 
@@ -80,7 +114,11 @@ def check_file_name_declared(text: str) -> "tuple[bool, str]":
     missing = 0
     for _, body, pos in code_blocks:
         preceding = text[max(0, pos - 200):pos]
-        if not re.search(r"file\s*:\s*\S+\.\w+", preceding, re.IGNORECASE):
+        inside_start = body[:120]
+        has_label = re.search(r"file\s*:\s*\S+\.\w+", preceding, re.IGNORECASE) or re.search(
+            r"//\s*file\s*:\s*\S+\.\w+", inside_start, re.IGNORECASE
+        )
+        if not has_label:
             missing += 1
     if missing == 0:
         return True, f"All {len(code_blocks)} code block(s) preceded by a 'File: X.java' label."
@@ -89,8 +127,11 @@ def check_file_name_declared(text: str) -> "tuple[bool, str]":
 
 def _find_method_signatures(body: str):
     """Yield (params_str, trailing_text_after_close_paren) for each `name(...) {` found,
-    tolerating multi-line parameter lists."""
-    for m in re.finditer(r"\b\w+\s*\(", body):
+    tolerating multi-line parameter lists. Skips Java control-flow constructs
+    (if/while/for/...) that also look like `word(...) {`."""
+    for m in re.finditer(r"\b(\w+)\s*\(", body):
+        if m.group(1).lower() in CONTROL_FLOW_KEYWORDS:
+            continue
         start_paren = m.end() - 1
         depth = 0
         i = start_paren
@@ -162,8 +203,8 @@ def check_inline_arg_comments(text: str) -> "tuple[bool, str]":
 
 
 def check_pass1_before_pass2(text: str) -> "tuple[bool, str]":
-    pass1_idx = _find_section(text, "pass 1", "pass1")
-    pass2_idx = _find_section(text, "pass 2", "pass2")
+    pass1_idx = _pass1_idx(text)
+    pass2_idx = _pass2_idx(text)
     if pass1_idx == -1 or pass2_idx == -1:
         return False, "Could not locate both a 'Pass 1' and a 'Pass 2' section marker."
     if pass1_idx < pass2_idx:
@@ -172,28 +213,28 @@ def check_pass1_before_pass2(text: str) -> "tuple[bool, str]":
 
 
 def check_pass1_no_assessment_objects(text: str) -> "tuple[bool, str]":
-    pass1_idx = _find_section(text, "pass 1", "pass1")
-    pass2_idx = _find_section(text, "pass 2", "pass2")
+    pass1_idx = _pass1_idx(text)
+    pass2_idx = _pass2_idx(text)
     if pass1_idx == -1:
         return False, "No Pass 1 section found."
     end = pass2_idx if pass2_idx != -1 else len(text)
     pass1_text = text[pass1_idx:end]
     pass1_code = "".join(body for _, body, pos in _code_blocks(pass1_text))
-    hits = PATIENT_OBJECT_RE.findall(pass1_code)
+    hits = DOMAIN_OBJECT_RE.findall(pass1_code)
     if hits:
         return False, f"Pass 1 code references assessment objects ({set(hits)}) instead of staying generic."
-    return True, "Pass 1 code contains no assessment-specific (Patient*) objects."
+    return True, "Pass 1 code contains no assessment-domain objects."
 
 
 def check_pass2_uses_assessment_objects(text: str) -> "tuple[bool, str]":
-    pass2_idx = _find_section(text, "pass 2", "pass2")
+    pass2_idx = _pass2_idx(text)
     if pass2_idx == -1:
         return False, "No Pass 2 section found."
     pass2_text = text[pass2_idx:]
     pass2_code = "".join(body for _, body, pos in _code_blocks(pass2_text))
-    if PATIENT_OBJECT_RE.search(pass2_code):
-        return True, "Pass 2 code references the real assessment object (Patient*)."
-    return False, "Pass 2 code never references the assessment's actual object (Patient*)."
+    if DOMAIN_OBJECT_RE.search(pass2_code):
+        return True, "Pass 2 code references a real assessment-domain object."
+    return False, "Pass 2 code never references any real assessment-domain object."
 
 
 def check_one_method_at_a_time(text: str) -> "tuple[bool, str]":
@@ -220,8 +261,8 @@ def check_memorable_rule_present(text: str) -> "tuple[bool, str]":
 
 
 def check_generic_main_demo_present(text: str) -> "tuple[bool, str]":
-    pass1_idx = _find_section(text, "pass 1", "pass1")
-    pass2_idx = _find_section(text, "pass 2", "pass2")
+    pass1_idx = _pass1_idx(text)
+    pass2_idx = _pass2_idx(text)
     if pass1_idx == -1:
         return False, "No Pass 1 section found."
     end = pass2_idx if pass2_idx != -1 else len(text)
@@ -234,7 +275,7 @@ def check_generic_main_demo_present(text: str) -> "tuple[bool, str]":
 
 
 def check_bridge_line_present(text: str) -> "tuple[bool, str]":
-    pass2_idx = _find_section(text, "pass 2", "pass2")
+    pass2_idx = _pass2_idx(text)
     if pass2_idx == -1:
         return False, "No Pass 2 section found."
     window = text[pass2_idx: pass2_idx + 600]
@@ -244,17 +285,17 @@ def check_bridge_line_present(text: str) -> "tuple[bool, str]":
 
 
 def check_assessment_main_demo_present(text: str) -> "tuple[bool, str]":
-    pass2_idx = _find_section(text, "pass 2", "pass2")
+    pass2_idx = _pass2_idx(text)
     if pass2_idx == -1:
         return False, "No Pass 2 section found."
     segment = text[pass2_idx:]
     has_main = re.search(r"file\s*:\s*main\.java", segment, re.IGNORECASE) or re.search(
         r"class\s+Main\b", segment
     )
-    has_patient = PATIENT_OBJECT_RE.search(segment)
-    if has_main and has_patient:
-        return True, "Found a Main demonstration in Pass 2 using assessment (Patient*) objects."
-    return False, "No Main demonstration referencing Patient* objects found in Pass 2."
+    has_domain_object = DOMAIN_OBJECT_RE.search(segment)
+    if has_main and has_domain_object:
+        return True, "Found a Main demonstration in Pass 2 using a real assessment-domain object."
+    return False, "No Main demonstration referencing a real assessment-domain object found in Pass 2."
 
 
 def check_closing_asks_permission(text: str) -> "tuple[bool, str]":
@@ -265,8 +306,8 @@ def check_closing_asks_permission(text: str) -> "tuple[bool, str]":
 
 
 def check_commit_after_full_topic_only(text: str) -> "tuple[bool, str]":
-    pass1_idx = _find_section(text, "pass 1", "pass1")
-    pass2_idx = _find_section(text, "pass 2", "pass2")
+    pass1_idx = _pass1_idx(text)
+    pass2_idx = _pass2_idx(text)
     commits = list(GIT_COMMIT_RE.finditer(text))
     if not commits:
         return False, "No 'git commit -m' example found in the response."
@@ -292,13 +333,16 @@ def check_commit_message_quality(text: str) -> "tuple[bool, str]":
 
 
 def check_code_blocks_language_tagged(text: str) -> "tuple[bool, str]":
-    blocks = _code_blocks(text)
+    # Only actual Java source blocks need a language tag to be "copy-paste ready" (skill
+    # line 135) -- diagrams and `git`/shell snippets are fenced for readability, not as
+    # source the student pastes into their IDE, so they're exempt.
+    blocks = [b for b in _code_blocks(text) if JAVA_CODE_SIGNAL_RE.search(b[1])]
     if not blocks:
-        return False, "No fenced code blocks found."
+        return False, "No Java code blocks found to check."
     untagged = [b for b in blocks if not b[0]]
     if untagged:
-        return False, f"{len(untagged)}/{len(blocks)} code block(s) have no language tag on the fence."
-    return True, f"All {len(blocks)} code block(s) are language-tagged (copy-paste ready)."
+        return False, f"{len(untagged)}/{len(blocks)} Java code block(s) have no language tag on the fence."
+    return True, f"All {len(blocks)} Java code block(s) are language-tagged (copy-paste ready)."
 
 
 RULES: "list[Rule]" = [
@@ -310,9 +354,9 @@ RULES: "list[Rule]" = [
          "iKoott-Assessment-Tutor-Skill.md:72", check_inline_arg_comments),
     Rule("pass1_before_pass2", "Pass 1 (generic) must be taught before Pass 2 (assessment).",
          "iKoott-Assessment-Tutor-Skill.md:62-83", check_pass1_before_pass2),
-    Rule("pass1_no_assessment_objects", "Pass 1 code must use plain/generic data, not Patient objects.",
+    Rule("pass1_no_assessment_objects", "Pass 1 code must use plain/generic data, not real assessment objects.",
          "iKoott-Assessment-Tutor-Skill.md:62,69", check_pass1_no_assessment_objects),
-    Rule("pass2_uses_assessment_objects", "Pass 2 code must use the real assessment object (Patient*).",
+    Rule("pass2_uses_assessment_objects", "Pass 2 code must use a real assessment-domain object.",
          "iKoott-Assessment-Tutor-Skill.md:76-80", check_pass2_uses_assessment_objects),
     Rule("one_method_at_a_time", "Never combine multiple methods into a single code block.",
          "iKoott-Assessment-Tutor-Skill.md:69", check_one_method_at_a_time),

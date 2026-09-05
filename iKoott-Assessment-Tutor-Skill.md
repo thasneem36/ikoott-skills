@@ -74,6 +74,7 @@ Same rule as always: never assume a fixed assignment. Read whatever assessment f
 Produce the COMPLETE, final Java source for every component the assessment requires — fully implemented, not stubs or partial logic. For each file:
 - Clearly label it (`File: X.java`)
 - Include a working `Main.java` (or equivalent) that exercises the whole system end-to-end
+- Also produce a complete `README.md` covering: project overview, data structures used, how to compile/run, and project structure — this is part of the same one-shot delivery, never a follow-up offer, since step 6's git script already assumes it exists.
 
 ### 4. Demo-support script
 Since the assessment also requires a demonstration video showing every operation running, include one runnable driver (inside `Main.java` or a separate `Demo.java`) that walks through every required operation for every data structure in one run (e.g. BST insert/search/delete/traversal, queue enqueue/dequeue/display, stack push/pop/display, linked-list add/remove/search/display) with clear printed output — something the student can point a screen recording at.

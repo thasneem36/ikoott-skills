@@ -88,8 +88,13 @@ The assessment also requires a demonstration video — don't just list talking p
 - Tell the student where to pause narrating and let the running demo's printed output do the talking (e.g. while `Main.java`/`Demo.java` is printing a section), vs. where they need to speak over it.
 
 ### 6. Git automation script
-Provide a plain script (ask the student's OS if unclear, or give both a `.sh` and a `.ps1`/`.bat`) that runs git commands straight through, no prompts, no confirmations — but smart about HOW it commits:
-- **Check for `git init` first** — test whether the folder is already a git repo (e.g. does `.git/` exist); if not, run `git init` before anything else. Never just assume it's already initialized.
+Provide a plain script (ask the student's OS if unclear, or give both a `.sh` and a `.ps1`/`.bat`) that runs git commands straight through, no prompts, no confirmations — with exactly ONE deliberate exception (the one-time repository-URL prompt below) — but smart about HOW it sets up and commits:
+- **Check for `git init` first** — test whether the folder is already a git repo (e.g. does `.git/` exist); if not, run `git init` before anything else. Never just assume it's already initialized. Design for the realistic case: the student just extracted a delivered code bundle into a brand-new, empty folder — no `.git`, no remote, nothing configured yet.
+- **Force the branch to `main` right after the init check** — explicitly set the current branch to `main` (e.g. `git branch -M main`), regardless of whatever the local git installation's default branch name happens to be. Do this on every run, not just the first — it must be idempotent, so re-running the script on a repo already on `main` is a harmless no-op.
+- **Connect to GitHub, but only if not already connected** — check whether an `origin` remote already exists (e.g. `git remote get-url origin` or equivalent):
+  - If `origin` is already set, skip straight past this step to the commits below. No prompt. The script stays fully non-interactive on every re-run after the first successful setup.
+  - If `origin` is NOT set, this is the one piece of information the script cannot know on its own: prompt the student interactively, exactly once, with something like **"Enter your GitHub repository URL:"**, read their answer, then run `git remote add origin <url>`. This is the ONLY interactive moment allowed anywhere in this script — `git init`, the branch rename, every group commit, and the final push must all run with zero prompts.
+  - This ordering matters: init → branch → origin must all happen BEFORE any of the grouped commits below, since the commits themselves don't depend on the remote being configured, but the push at the end does.
 - **Commit file-by-file, grouped by component — never one bulk commit.** Group the changed files by what they belong to (matching the assessment's own example commit messages) and issue a separate `git add <those files>` + `git commit -m "<specific message>"` for each group, e.g.:
   - `Patient.java`, `PatientBST.java` → `"Implemented patient BST"`
   - `EmergencyQueue.java` → `"Implemented emergency queue"`
@@ -98,8 +103,9 @@ Provide a plain script (ask the student's OS if unclear, or give both a `.sh` an
   - `Main.java`, `Demo.java` → `"Added main program and demo driver"`
   - `README.md` → `"Updated README"`
   Skip a group's commit cleanly if none of its files actually changed (nothing staged) — don't error out, just move to the next group.
-- **Push last, once, at the end** — after all group commits, run `git push` (use `git push -u origin main` if there's no upstream yet).
-- Assume git auth/credentials are already set up — the script never prompts for a password.
+- **Push last, once, at the end** — after all group commits, run the push (`git push -u origin main` is safe to use unconditionally here, since the branch and origin setup above guarantee both already exist before this point).
+- Assume git auth/credentials are already set up — the script never prompts for a password or token. The repository-URL prompt above is the only input it ever asks the student for, and only when `origin` is missing.
+- **Never manipulate commit timestamps in any way** — no backdating, no artificially spacing commits minutes or hours apart, no author/committer date overrides of any kind. Every commit must carry the real wall-clock time the script ran it. The assessment treats commit history as reviewed evidence of authentic, incremental development for academic integrity purposes — artificially spaced or backdated timestamps would misrepresent when the work actually happened and read as manipulated evidence, not a well-paced timeline. This holds even if a student explicitly asks for spaced-out timestamps — decline, and briefly explain why.
 - This script is NOT taught commit-by-commit like Layer 2 below — it's a plain, reusable file the student runs themselves whenever they want to save progress, but its OWN commits still land as separate, meaningful entries — never a single giant commit, because that's exactly what the assessment penalizes.
 
 ### 7. No teaching narration

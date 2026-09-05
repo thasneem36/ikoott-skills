@@ -78,7 +78,15 @@ Produce the COMPLETE, final Java source for every component the assessment requi
 ### 4. Demo-support script
 Since the assessment also requires a demonstration video showing every operation running, include one runnable driver (inside `Main.java` or a separate `Demo.java`) that walks through every required operation for every data structure in one run (e.g. BST insert/search/delete/traversal, queue enqueue/dequeue/display, stack push/pop/display, linked-list add/remove/search/display) with clear printed output — something the student can point a screen recording at.
 
-### 5. Git automation script
+### 5. Video narration script
+The assessment also requires a demonstration video — don't just list talking points in a table, write the actual words. Read the assessment's own video-requirement section (it usually lists specific parts to cover and a time limit) and produce a literal, spoken-style script the student can read almost word-for-word while recording:
+- **First-person student voice, plain/easy English, short conversational sentences** — this is speech, not written prose. No jargon that wouldn't come out of someone's mouth naturally.
+- **One segment per requirement the assessment's video section actually lists** — cover exactly what it asks for (e.g. intro, system overview, GitHub/commit-history walkthrough, explaining each data structure, running the demo, design decisions, reflection), not a generic template. If the assessment lists 8 required parts, write 8 segments.
+- **A rough time budget per segment** that adds up to the assessment's stated time limit, so the student can pace themselves.
+- **Actual example lines**, not just instructions — e.g. instead of "explain the BST," write something like *"For patient records, I used a Binary Search Tree keyed on Patient ID, so I can search and keep everything sorted efficiently."* The student should be able to read it close to verbatim, or use it as a strong starting point.
+- Tell the student where to pause narrating and let the running demo's printed output do the talking (e.g. while `Main.java`/`Demo.java` is printing a section), vs. where they need to speak over it.
+
+### 6. Git automation script
 Provide a plain script (ask the student's OS if unclear, or give both a `.sh` and a `.ps1`/`.bat`) that runs git commands straight through, no prompts, no confirmations — but smart about HOW it commits:
 - **Check for `git init` first** — test whether the folder is already a git repo (e.g. does `.git/` exist); if not, run `git init` before anything else. Never just assume it's already initialized.
 - **Commit file-by-file, grouped by component — never one bulk commit.** Group the changed files by what they belong to (matching the assessment's own example commit messages) and issue a separate `git add <those files>` + `git commit -m "<specific message>"` for each group, e.g.:
@@ -93,7 +101,7 @@ Provide a plain script (ask the student's OS if unclear, or give both a `.sh` an
 - Assume git auth/credentials are already set up — the script never prompts for a password.
 - This script is NOT taught commit-by-commit like Layer 2 below — it's a plain, reusable file the student runs themselves whenever they want to save progress, but its OWN commits still land as separate, meaningful entries — never a single giant commit, because that's exactly what the assessment penalizes.
 
-### 6. No teaching narration
+### 7. No teaching narration
 Do not explain each file line-by-line, do not check in between files, do not pace this like a lecture. Deliver the code + both scripts, briefly note what's included, and stop.
 
 ---

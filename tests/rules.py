@@ -126,9 +126,11 @@ def check_file_name_declared(text: str) -> "tuple[bool, str]":
 
 
 def _find_method_signatures(body: str):
-    """Yield (params_str, trailing_text_after_close_paren) for each `name(...) {` found,
-    tolerating multi-line parameter lists. Skips Java control-flow constructs
-    (if/while/for/...) that also look like `word(...) {`."""
+    """Yield (params_str, method_body_text) for each `name(...) { ... }` found, tolerating
+    multi-line parameter lists. The method body is captured by brace-balance matching (not a
+    fixed-size window), so it's exact regardless of how many parameters/lines it has, and
+    never bleeds into whatever code follows. Skips Java control-flow constructs (if/while/
+    for/...) that also look like `word(...) {`."""
     for m in re.finditer(r"\b(\w+)\s*\(", body):
         if m.group(1).lower() in CONTROL_FLOW_KEYWORDS:
             continue
@@ -147,12 +149,38 @@ def _find_method_signatures(body: str):
             continue
         end_paren = i
         params_str = body[start_paren + 1:end_paren]
-        after = body[end_paren + 1:end_paren + 300]
-        if not re.match(r"\s*(throws\s+[\w.,\s]+)?\s*\{", after):
+        after_paren = body[end_paren + 1:end_paren + 50]
+        brace_match = re.match(r"\s*(throws\s+[\w.,\s]+)?\s*\{", after_paren)
+        if not brace_match:
             continue
         if not params_str.strip():
             continue
-        yield params_str, after
+        brace_pos = end_paren + 1 + after_paren.index("{", brace_match.start())
+        depth2 = 0
+        j = brace_pos
+        while j < len(body):
+            if body[j] == "{":
+                depth2 += 1
+            elif body[j] == "}":
+                depth2 -= 1
+                if depth2 == 0:
+                    break
+            j += 1
+        else:
+            j = len(body) - 1
+        method_body = body[brace_pos + 1:j]
+        yield params_str, method_body
+
+
+def _camel_words(name: str) -> "list[str]":
+    return [w.lower() for w in re.findall(r"[A-Z]?[a-z0-9]+|[A-Z]+(?![a-z])", name) if len(w) > 1]
+
+
+def _name_referenced(name: str, comment_text: str) -> bool:
+    comment_lower = comment_text.lower()
+    if re.search(r"\b" + re.escape(name.lower()) + r"\b", comment_lower):
+        return True
+    return any(re.search(r"\b" + re.escape(w) + r"\b", comment_lower) for w in _camel_words(name))
 
 
 def check_inline_arg_comments(text: str) -> "tuple[bool, str]":
@@ -161,7 +189,7 @@ def check_inline_arg_comments(text: str) -> "tuple[bool, str]":
     fully_commented = 0
     missing_examples = []
     for _, body, _ in blocks:
-        for params_str, after in _find_method_signatures(body):
+        for params_str, method_body in _find_method_signatures(body):
             parts = [p.strip() for p in params_str.split(",") if p.strip()]
             if not parts:
                 continue
@@ -182,11 +210,12 @@ def check_inline_arg_comments(text: str) -> "tuple[bool, str]":
             # Style A: each parameter sits on its own line with its own trailing comment.
             multiline_ok = len(parts) == len(names) and all("//" in p for p in parts)
 
-            # Style B: a comment block right after the opening '{' documents each parameter.
-            brace_idx = after.find("{")
-            trailing = after[brace_idx + 1: brace_idx + 1 + 400] if brace_idx != -1 else ""
-            comment_lines = "\n".join(l for l in trailing.splitlines() if "//" in l)
-            same_line_ok = bool(comment_lines) and all(name in comment_lines for name in names)
+            # Style B: a comment block documents each parameter somewhere in the method body
+            # -- either right after the opening brace, or (for constructors) on each field's
+            # own assignment line (e.g. "this.patientId = patientId; // store the ID"). Matching
+            # is camelCase-aware since a natural comment says "store the ID", not "patientId".
+            comment_lines = "\n".join(l for l in method_body.splitlines() if "//" in l)
+            same_line_ok = bool(comment_lines) and all(_name_referenced(name, comment_lines) for name in names)
 
             if multiline_ok or same_line_ok:
                 fully_commented += 1

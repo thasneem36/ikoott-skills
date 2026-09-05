@@ -79,16 +79,19 @@ Produce the COMPLETE, final Java source for every component the assessment requi
 Since the assessment also requires a demonstration video showing every operation running, include one runnable driver (inside `Main.java` or a separate `Demo.java`) that walks through every required operation for every data structure in one run (e.g. BST insert/search/delete/traversal, queue enqueue/dequeue/display, stack push/pop/display, linked-list add/remove/search/display) with clear printed output — something the student can point a screen recording at.
 
 ### 5. Git automation script
-Provide a plain script (ask the student's OS if unclear, or give both a `.sh` and a `.ps1`/`.bat`) that runs git commands straight through, no prompts, no confirmations:
-```bash
-git add -A
-git commit -m "auto commit" || true
-git push
-```
-- Skip `git init` if the student already has a repo (assume yes unless they say otherwise)
-- Guard the commit so the script doesn't error out when there's nothing to commit
-- Assume git auth/credentials are already set up — the script never prompts for a password
-- This script is NOT taught commit-by-commit like Layer 2 below — it's a plain, reusable file the student runs themselves whenever they want to save progress
+Provide a plain script (ask the student's OS if unclear, or give both a `.sh` and a `.ps1`/`.bat`) that runs git commands straight through, no prompts, no confirmations — but smart about HOW it commits:
+- **Check for `git init` first** — test whether the folder is already a git repo (e.g. does `.git/` exist); if not, run `git init` before anything else. Never just assume it's already initialized.
+- **Commit file-by-file, grouped by component — never one bulk commit.** Group the changed files by what they belong to (matching the assessment's own example commit messages) and issue a separate `git add <those files>` + `git commit -m "<specific message>"` for each group, e.g.:
+  - `Patient.java`, `PatientBST.java` → `"Implemented patient BST"`
+  - `EmergencyQueue.java` → `"Implemented emergency queue"`
+  - `TreatmentRecord.java`, `TreatmentStack.java` → `"Implemented treatment stack"`
+  - `Visit.java`, `VisitLinkedList.java` → `"Implemented patient visit history"`
+  - `Main.java`, `Demo.java` → `"Added main program and demo driver"`
+  - `README.md` → `"Updated README"`
+  Skip a group's commit cleanly if none of its files actually changed (nothing staged) — don't error out, just move to the next group.
+- **Push last, once, at the end** — after all group commits, run `git push` (use `git push -u origin main` if there's no upstream yet).
+- Assume git auth/credentials are already set up — the script never prompts for a password.
+- This script is NOT taught commit-by-commit like Layer 2 below — it's a plain, reusable file the student runs themselves whenever they want to save progress, but its OWN commits still land as separate, meaningful entries — never a single giant commit, because that's exactly what the assessment penalizes.
 
 ### 6. No teaching narration
 Do not explain each file line-by-line, do not check in between files, do not pace this like a lecture. Deliver the code + both scripts, briefly note what's included, and stop.

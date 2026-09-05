@@ -1,0 +1,107 @@
+[
+  {
+    "rule_id": "diagram_before_code",
+    "description": "A small diagram must appear before any code is shown.",
+    "skill_ref": "iKoott-Assessment-Tutor-Skill.md:67",
+    "passed": true,
+    "detail": "Found diagram-like content before the first real code block."
+  },
+  {
+    "rule_id": "file_name_declared",
+    "description": "Every code block states its file name (e.g. 'File: Node.java').",
+    "skill_ref": "iKoott-Assessment-Tutor-Skill.md:71",
+    "passed": false,
+    "detail": "6/13 code block(s) missing a preceding 'File: X.java' label."
+  },
+  {
+    "rule_id": "inline_arg_comments",
+    "description": "Every method parameter has its own inline comment.",
+    "skill_ref": "iKoott-Assessment-Tutor-Skill.md:72",
+    "passed": true,
+    "detail": "All 5 parameterized method signature(s) have per-argument inline comments."
+  },
+  {
+    "rule_id": "pass1_before_pass2",
+    "description": "Pass 1 (generic) must be taught before Pass 2 (assessment).",
+    "skill_ref": "iKoott-Assessment-Tutor-Skill.md:62-83",
+    "passed": true,
+    "detail": "Pass 1 section appears before Pass 2 section."
+  },
+  {
+    "rule_id": "pass1_no_assessment_objects",
+    "description": "Pass 1 code must use plain/generic data, not real assessment objects.",
+    "skill_ref": "iKoott-Assessment-Tutor-Skill.md:62,69",
+    "passed": true,
+    "detail": "Pass 1 code contains no assessment-domain objects."
+  },
+  {
+    "rule_id": "pass2_uses_assessment_objects",
+    "description": "Pass 2 code must use a real assessment-domain object.",
+    "skill_ref": "iKoott-Assessment-Tutor-Skill.md:76-80",
+    "passed": true,
+    "detail": "Pass 2 code references a real assessment-domain object."
+  },
+  {
+    "rule_id": "one_method_at_a_time",
+    "description": "Never combine multiple methods into a single code block.",
+    "skill_ref": "iKoott-Assessment-Tutor-Skill.md:69",
+    "passed": true,
+    "detail": "No single code block bundles more than one method."
+  },
+  {
+    "rule_id": "memorable_rule_present",
+    "description": "A short, quotable 'memorable rule' line must be present.",
+    "skill_ref": "iKoott-Assessment-Tutor-Skill.md:68",
+    "passed": true,
+    "detail": "Found a blockquote line usable as a memorable rule."
+  },
+  {
+    "rule_id": "generic_main_demo_present",
+    "description": "Pass 1 must end with a generic Main.java demonstration.",
+    "skill_ref": "iKoott-Assessment-Tutor-Skill.md:74",
+    "passed": true,
+    "detail": "Found a generic Main.java demonstration inside Pass 1."
+  },
+  {
+    "rule_id": "bridge_line_present",
+    "description": "Pass 2 must open with an explicit bridge line.",
+    "skill_ref": "iKoott-Assessment-Tutor-Skill.md:78",
+    "passed": true,
+    "detail": "Found bridge-line language at the start of Pass 2."
+  },
+  {
+    "rule_id": "assessment_main_demo_present",
+    "description": "Pass 2 must end with a real-object Main demonstration.",
+    "skill_ref": "iKoott-Assessment-Tutor-Skill.md:80",
+    "passed": true,
+    "detail": "Found a Main demonstration in Pass 2 using a real assessment-domain object."
+  },
+  {
+    "rule_id": "closing_asks_permission",
+    "description": "Topic closing must check in with the student, never auto-advance.",
+    "skill_ref": "iKoott-Assessment-Tutor-Skill.md:81,134",
+    "passed": true,
+    "detail": "Response ends with a question (checking in before advancing)."
+  },
+  {
+    "rule_id": "commit_after_full_topic_only",
+    "description": "Git commit must only be taught after BOTH passes are complete.",
+    "skill_ref": "iKoott-Assessment-Tutor-Skill.md:95",
+    "passed": true,
+    "detail": "All 1 commit(s) appear after Pass 2 has started (full topic complete)."
+  },
+  {
+    "rule_id": "commit_message_quality",
+    "description": "Commit messages must be scoped/specific, never a giant final dump.",
+    "skill_ref": "iKoott-Assessment-Tutor-Skill.md:105-109",
+    "passed": true,
+    "detail": "Commit message(s) look scoped and specific: ['Implemented emergency queue']"
+  },
+  {
+    "rule_id": "code_blocks_language_tagged",
+    "description": "Code must be copy-paste-ready (fenced with a language tag).",
+    "skill_ref": "iKoott-Assessment-Tutor-Skill.md:135",
+    "passed": true,
+    "detail": "All 13 Java code block(s) are language-tagged (copy-paste ready)."
+  }
+]

@@ -242,9 +242,13 @@ def check_one_method_at_a_time(text: str) -> "tuple[bool, str]":
     offenders = []
     for lang, body, _ in blocks:
         sigs = METHOD_SIG_RE.findall(body)
+        # A public wrapper calling a private recursive helper of the SAME name (e.g.
+        # `public void insert(int value)` -> `private Node insert(Node current, int value)`)
+        # is one coherent operation, not two methods -- dedupe by name before counting.
+        distinct_names = {s[2] for s in sigs}
         # Constructors count as a "method" for this purpose too.
-        if len(sigs) > 1:
-            offenders.append(len(sigs))
+        if len(distinct_names) > 1:
+            offenders.append(len(distinct_names))
     if not offenders:
         return True, "No single code block bundles more than one method."
     return False, f"{len(offenders)} code block(s) contain multiple methods at once (counts: {offenders})."

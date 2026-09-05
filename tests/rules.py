@@ -307,21 +307,30 @@ def check_generic_main_demo_present(text: str) -> "tuple[bool, str]":
     return False, "No Main.java / class Main demonstration found inside Pass 1."
 
 
+# The skill file's own instruction for the bridge line (line 78) is to state what CHANGES
+# and what stays IDENTICAL. Rather than matching an ever-growing list of exact phrasings
+# (every fresh response paraphrases this differently), check for that underlying pair of
+# concepts co-occurring near the Pass 2 boundary: a continuity signal and a change signal.
+BRIDGE_CONTINUITY_WORDS = ["same", "identical", "unchanged", "remains", "stays", "still the"]
+BRIDGE_CHANGE_WORDS = ["changes", "instead of", "different", "now storing", "now using", "swap", "apply"]
+
+
 def check_bridge_line_present(text: str) -> "tuple[bool, str]":
     pass2_idx = _pass2_idx(text)
     if pass2_idx == -1:
         return False, "No Pass 2 section found."
     # The bridge sentence is sometimes written as prose right before the Pass 2 heading
-    # rather than under its own "Bridge" heading, so look a bit before the boundary too.
-    window = text[max(0, pass2_idx - 500): pass2_idx + 600]
-    if re.search(
-        r"(same logic|now that|apply.*(same|logic)|understood now|logic is (solid|clear|understood)|"
-        r"same (rules|structure)|stays (the same|identical|exactly the same)|what (changes|stays))",
-        window,
-        re.IGNORECASE,
-    ):
-        return True, "Found bridge-line language at the start of Pass 2."
-    return False, "No bridge line ('same logic, now applying to...') found at the start of Pass 2."
+    # rather than under its own "Bridge" heading, so look a bit before the boundary too,
+    # and far enough after it to cover a full paragraph-length bridge.
+    window = text[max(0, pass2_idx - 500): pass2_idx + 900].lower()
+    has_continuity = any(w in window for w in BRIDGE_CONTINUITY_WORDS)
+    has_change = any(w in window for w in BRIDGE_CHANGE_WORDS)
+    if has_continuity and has_change:
+        return True, "Found bridge-line language (both a continuity and a change signal) near the Pass 2 boundary."
+    return False, (
+        "No bridge line found near the Pass 2 boundary "
+        f"(continuity signal: {has_continuity}, change signal: {has_change})."
+    )
 
 
 def check_assessment_main_demo_present(text: str) -> "tuple[bool, str]":
